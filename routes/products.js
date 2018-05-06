@@ -34,4 +34,17 @@ router.get('/get_product_detail', async function(ctx, next) {
         data: doc
     };
 });
+router.get('/get_slider_pic', async function(ctx, next) {
+    let list = [];
+    for (let i = 1; i <= 6; i++) {
+        list.push(`/images/slider/ad${i}.jpg`);
+    }
+    ctx.body = {
+        errNo: 0,
+        errStr: 'success',
+        data: {
+            list
+        }
+    };
+});
 module.exports = router;

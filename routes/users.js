@@ -18,10 +18,10 @@ router.get('/', async function(ctx, next) {
 
 router.get('/get_user_info', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let userId = ctx.cookies.get('userId');
+    let userId = parseInt(ctx.cookies.get('userId'));
     if (!userId) {
         ctx.body = {
-            errNo: 1,
+            errNo: 11,
             errStr: '用户未登录,无法获取当前用户的信息'
         };
         return;
@@ -29,15 +29,25 @@ router.get('/get_user_info', async function(ctx, next) {
     let userDoc = await userCollection.findOne({
         userId
     });
-    let userInfo = {};
-    userInfo.userName = userDoc.userName;
-    userInfo.cartNum = userDoc.cartList.length;
-    userInfo.avatar = userDoc.imageHost + userDoc.avatar;
-    ctx.body = {
-        errNo: 0,
-        errStr: 'success',
-        data: userInfo
-    };
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+    } else {
+        let userInfo = {};
+        userInfo.userName = userDoc.userName;
+        userInfo.cartNum = userDoc.cartList.length;
+        userInfo.avatar = `${config.imageHost}${config.avatarBasicPath}${
+      userDoc.avatar
+    }`;
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: userInfo
+        };
+    }
 });
 
 router.post('/login', async function(ctx, next) {
@@ -111,7 +121,9 @@ router.post('/register', async function(ctx, next) {
         };
     } else {
         let userDoc = await userCollection.find().toArray();
-        let userId = parseInt(userDoc[userDoc.length - 1].userId) + 1;
+        let userId = userDoc.length ?
+            parseInt(userDoc[userDoc.length - 1].userId) + 1 :
+            100000001;
         let result = await userCollection.insertOne({
             userId,
             userName,
@@ -120,7 +132,6 @@ router.post('/register', async function(ctx, next) {
             email,
             question,
             answer,
-            imageHost: config.imageHost,
             avatar: '',
             realName: '',
             sex: '',
@@ -213,18 +224,26 @@ router.post('/check_reset_answer', async function(ctx, next) {
     let userDoc = await userCollection.findOne({
         userName
     });
-    if (userDoc.answer !== answer) {
+    if (!userDoc) {
         ctx.body = {
-            errNo: 1,
-            errStr: '答案错误',
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
             data: ''
         };
     } else {
-        ctx.body = {
-            errNo: 0,
-            errStr: 'success',
-            data: ''
-        };
+        if (userDoc.answer !== answer) {
+            ctx.body = {
+                errNo: 1,
+                errStr: '答案错误',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        }
     }
 });
 router.post('/reset_password', async function(ctx, next) {
@@ -233,6 +252,14 @@ router.post('/reset_password', async function(ctx, next) {
     let userDoc = await userCollection.findOne({
         userName
     });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+        return;
+    }
     let result = await userCollection.update({
         userName
     }, {
@@ -257,21 +284,29 @@ router.post('/reset_password', async function(ctx, next) {
 });
 router.get('/get_address_list', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let userId = ctx.cookies.get('userId');
+    let userId = parseInt(ctx.cookies.get('userId'));
     let userDoc = await userCollection.findOne({
         userId
     });
     if (!userDoc) {
         ctx.body = {
-            errNo: 1,
-            errStr: '当前用户不存在',
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
             data: ''
         };
     } else {
+        let list = userDoc.addressList;
+        if (list.length) {
+            let defaultIndex = list.findIndex(item => {
+                return item.default === 1;
+            });
+            let defaultAaddress = list.splice(defaultIndex, 1);
+            list.unshift(defaultAaddress[0]);
+        }
         ctx.body = {
             errNo: 0,
             errStr: 'success',
-            data: userDoc.addressList
+            data: list
         };
     }
 });
@@ -284,8 +319,10 @@ router.post('/upload', avatarUpload.single('file'), async function(ctx, next) {
 });
 router.get('/get_user_extra_data', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let userId = ctx.cookies.get('userId');
-    let userDoc = await userCollection.findOne({ userId });
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let userDoc = await userCollection.findOne({
+        userId
+    });
     if (!userDoc) {
         ctx.body = {
             errNo: 10,
@@ -297,7 +334,10 @@ router.get('/get_user_extra_data', async function(ctx, next) {
             errNo: 0,
             errStr: 'success',
             data: {
-                avatar: `${userDoc.imageHost}${userDoc.avatar}`,
+                avatar: {
+                    name: userDoc.avatar,
+                    url: `${config.imageHost}${config.avatarBasicPath}${userDoc.avatar}`
+                },
                 realName: userDoc.realName,
                 sex: userDoc.sex ? parseInt(userDoc.sex) : '',
                 birthday: parseInt(userDoc.birthday)
@@ -308,10 +348,12 @@ router.get('/get_user_extra_data', async function(ctx, next) {
 router.post('/set_user_extra_data', async function(ctx, next) {
     let userCollection = database.collection('users');
     let { avatar, realName, sex, birthday } = ctx.request.body;
-    let userId = ctx.cookies.get('userId');
-    let result = await userCollection.update({ userId }, {
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let result = await userCollection.update({
+        userId
+    }, {
         $set: {
-            avatar: config.avatarBasicPath + avatar,
+            avatar: avatar,
             realName: realName,
             sex: sex,
             birthday: birthday
@@ -334,8 +376,10 @@ router.post('/set_user_extra_data', async function(ctx, next) {
 });
 router.get('/get_email_phone', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let userId = ctx.cookies.get('userId');
-    let userDoc = await userCollection.findOne({ userId });
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let userDoc = await userCollection.findOne({
+        userId
+    });
     if (!userDoc) {
         ctx.body = {
             errNo: 10,
@@ -350,7 +394,6 @@ router.get('/get_email_phone', async function(ctx, next) {
         for (let i = 0; i < repMax; i++) {
             rep += '*';
         }
-        console.log(typeof userDoc.phone, typeof userDoc.email);
         ctx.body = {
             errNo: 0,
             errStr: 'success',
@@ -365,7 +408,7 @@ router.get('/get_email_phone', async function(ctx, next) {
 });
 router.post('/check_old_password', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let userId = ctx.cookies.get('userId');
+    let userId = parseInt(ctx.cookies.get('userId'));
     let password = ctx.request.body.oldPassword;
     let userDoc = await userCollection.findOne({
         userId
@@ -394,8 +437,28 @@ router.post('/check_old_password', async function(ctx, next) {
 });
 router.post('/modify_password', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let userId = ctx.cookies.get('userId');
+    let userId = parseInt(ctx.cookies.get('userId'));
     let password = ctx.request.body.newPassword;
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+        return;
+    } else {
+        if (userDoc.password === password) {
+            ctx.body = {
+                errNo: 1,
+                errStr: '新密码不能与原密码相同',
+                data: ''
+            };
+            return;
+        }
+    }
     let result = await userCollection.update({
         userId
     }, {
@@ -412,7 +475,7 @@ router.post('/modify_password', async function(ctx, next) {
         };
     } else {
         ctx.body = {
-            errNo: 1,
+            errNo: 10,
             errStr: '出错了，请稍后重试',
             data: ''
         };
@@ -420,7 +483,7 @@ router.post('/modify_password', async function(ctx, next) {
 });
 router.post('/check_old_phone', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let userId = ctx.cookies.get('userId');
+    let userId = parseInt(ctx.cookies.get('userId'));
     let phone = ctx.request.body.oldPhone;
     let userDoc = await userCollection.findOne({
         userId
@@ -449,8 +512,38 @@ router.post('/check_old_phone', async function(ctx, next) {
 });
 router.post('/modify_phone', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let userId = ctx.cookies.get('userId');
+    let userId = parseInt(ctx.cookies.get('userId'));
     let phone = ctx.request.body.newPhone;
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+    } else {
+        if (userDoc.phone === phone) {
+            ctx.body = {
+                errNo: 2,
+                errStr: '新手机号不能与原来的手机号相同',
+                data: ''
+            };
+            return;
+        }
+    }
+    let phoneUser = await userCollection.findOne({
+        phone
+    });
+    if (phoneUser) {
+        ctx.body = {
+            errNo: 1,
+            errStr: '该手机号已经被绑定',
+            data: ''
+        };
+        return;
+    }
     let result = await userCollection.update({
         userId
     }, {
@@ -467,10 +560,442 @@ router.post('/modify_phone', async function(ctx, next) {
         };
     } else {
         ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+    }
+});
+router.post('/check_old_email', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let email = ctx.request.body.oldEmail;
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
             errNo: 1,
             errStr: '出错了，请稍后重试',
             data: ''
         };
+    } else {
+        if (userDoc.email === email) {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 1,
+                errStr: '原邮箱错误，请重新输入',
+                data: ''
+            };
+        }
+    }
+});
+router.post('/modify_email', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let email = ctx.request.body.newEmail;
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+    } else {
+        if (userDoc.email === email) {
+            ctx.body = {
+                errNo: 2,
+                errStr: '新邮箱不能与原来的邮箱相同',
+                data: ''
+            };
+            return;
+        }
+    }
+    let emailUser = await userCollection.findOne({
+        email
+    });
+    if (emailUser) {
+        ctx.body = {
+            errNo: 1,
+            errStr: '该邮箱已经被绑定',
+            data: ''
+        };
+        return;
+    }
+    let result = await userCollection.update({
+        userId
+    }, {
+        $set: {
+            email
+        }
+    });
+    result = JSON.parse(result);
+    if (result.ok) {
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: ''
+        };
+    } else {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+    }
+});
+router.get('/get_old_question', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 1,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+    } else {
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: userDoc.question
+        };
+    }
+});
+router.post('/check_old_answer', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let answer = ctx.request.body.oldAnswer;
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 1,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+    } else {
+        if (userDoc.answer === answer) {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 1,
+                errStr: '答案错误，请重新输入',
+                data: ''
+            };
+        }
+    }
+});
+router.post('/modify_question_and_answer', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let { question, answer } = ctx.request.body;
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+        return;
+    } else {
+        if (userDoc.question === question) {
+            ctx.body = {
+                errNo: 1,
+                errStr: '新安全问题不能与原来的相同',
+                data: ''
+            };
+            return;
+        }
+    }
+    let result = await userCollection.update({
+        userId
+    }, {
+        $set: {
+            question,
+            answer
+        }
+    });
+    result = JSON.parse(result);
+    if (result.ok) {
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: ''
+        };
+    } else {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+    }
+});
+router.post('/add_new_address', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let {
+        receiveName,
+        receivePhone,
+        postCode,
+        province,
+        city,
+        county,
+        detailArea,
+        addressDetail
+    } = ctx.request.body;
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+        return;
+    } else {
+        let addressId = userDoc.addressList.length ?
+            userDoc.addressList[userDoc.addressList.length - 1].addressId + 1 :
+            1;
+        let result = await userCollection.update({
+            userId
+        }, {
+            $push: {
+                addressList: {
+                    addressId,
+                    receiveName,
+                    receivePhone,
+                    postCode,
+                    province: parseInt(province),
+                    city: parseInt(city),
+                    county: parseInt(county),
+                    detailArea,
+                    addressDetail,
+                    default: userDoc.addressList.length ? 0 : 1
+                }
+            }
+        });
+        result = JSON.parse(result);
+        if (result.ok) {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 10,
+                errStr: '出错了，请稍后重试',
+                data: ''
+            };
+        }
+    }
+});
+router.post('/set_default_address', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let addressId = parseInt(ctx.request.body.addressId);
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+        return;
+    } else {
+        let result = await userCollection.update({
+            userId,
+            'addressList.default': 1
+        }, {
+            $set: {
+                'addressList.$.default': 0
+            }
+        });
+        let result2 = await userCollection.update({
+            userId,
+            'addressList.addressId': addressId
+        }, {
+            $set: {
+                'addressList.$.default': 1
+            }
+        });
+        result = JSON.parse(result);
+        result2 = JSON.parse(result2);
+        if (result.ok && result2.ok) {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 10,
+                errStr: '出错了，请稍后重试',
+                data: ''
+            };
+        }
+    }
+});
+router.post('/edit_address_info', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let addressId = parseInt(ctx.request.body.addressId);
+    let {
+        receiveName,
+        receivePhone,
+        province,
+        city,
+        county,
+        detailArea,
+        addressDetail,
+        postCode
+    } = ctx.request.body;
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+        return;
+    } else {
+        let result = await userCollection.update({
+            userId,
+            'addressList.addressId': addressId
+        }, {
+            $set: {
+                'addressList.$.receiveName': receiveName,
+                'addressList.$.receivePhone': receivePhone,
+                'addressList.$.province': parseInt(province),
+                'addressList.$.city': parseInt(city),
+                'addressList.$.county': parseInt(county),
+                'addressList.$.detailArea': detailArea,
+                'addressList.$.addressDetail': addressDetail,
+                'addressList.$.postCode': postCode
+            }
+        });
+        result = JSON.parse(result);
+        if (result.ok) {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 10,
+                errStr: '出错了，请稍后重试',
+                data: ''
+            };
+        }
+    }
+});
+router.post('/delete_address', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let addressId = parseInt(ctx.request.body.addressId);
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错了，请稍后重试',
+            data: ''
+        };
+        return;
+    } else {
+        let targetIndex = userDoc.addressList.findIndex(item => {
+            return item.addressId === addressId;
+        });
+        if (
+            userDoc.addressList.length > 1 &&
+            userDoc.addressList[targetIndex].default === 1
+        ) {
+            let result = await userCollection.update({
+                userId
+            }, {
+                $pull: {
+                    addressList: {
+                        addressId
+                    }
+                }
+            });
+            let user = await userCollection.findOne({
+                userId
+            });
+            console.log(user);
+            let newDefaultId = user.addressList[0].addressId;
+            let result2 = await userCollection.update({
+                userId,
+                'addressList.addressId': newDefaultId
+            }, {
+                $set: {
+                    'addressList.$.default': 1
+                }
+            });
+            result = JSON.parse(result);
+            result2 = JSON.parse(result2);
+            if (result.ok && result2.ok) {
+                ctx.body = {
+                    errNo: 0,
+                    errStr: 'success',
+                    data: ''
+                };
+            } else {
+                ctx.body = {
+                    errNo: 10,
+                    errStr: '出错了，请稍后重试',
+                    data: ''
+                };
+            }
+        } else {
+            let result = await userCollection.update({
+                userId
+            }, {
+                $pull: {
+                    addressList: {
+                        addressId
+                    }
+                }
+            });
+            result = JSON.parse(result);
+            if (result.ok) {
+                ctx.body = {
+                    errNo: 0,
+                    errStr: 'success',
+                    data: ''
+                };
+            } else {
+                ctx.body = {
+                    errNo: 10,
+                    errStr: '出错了，请稍后重试',
+                    data: ''
+                };
+            }
+        }
     }
 });
 module.exports = router;

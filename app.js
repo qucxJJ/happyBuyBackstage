@@ -10,6 +10,8 @@ const index = require('./routes/index');
 const users = require('./routes/users');
 const categories = require('./routes/categories');
 const products = require('./routes/products');
+const cities = require('./routes/cities');
+const admins = require('./routes/admins');
 
 // error handler
 onerror(app);
@@ -41,6 +43,8 @@ app.use(index.routes(), index.allowedMethods());
 app.use(users.routes(), users.allowedMethods());
 app.use(categories.routes(), categories.allowedMethods());
 app.use(products.routes(), products.allowedMethods());
+app.use(cities.routes(), cities.allowedMethods());
+app.use(admins.routes(), admins.allowedMethods());
 
 // error-handling
 app.on('error', (err, ctx) => {
