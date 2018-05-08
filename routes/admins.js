@@ -11,7 +11,7 @@ let database;
 router.prefix('/admins');
 
 router.get('/', async function(ctx, next) {
-    ctx.body = 'this is a cities response';
+    ctx.body = 'this is a categories response';
 });
 router.post('/login', async function(ctx, next) {
     let { adminName, password } = ctx.request.body;
