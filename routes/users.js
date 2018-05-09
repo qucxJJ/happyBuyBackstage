@@ -998,4 +998,196 @@ router.post('/delete_address', async function(ctx, next) {
         }
     }
 });
+router.get('/get_foot_list', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userId) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+    } else {
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: userDoc.footList.map(item => {
+                return {
+                    productId: item.productId,
+                    productName: item.productName,
+                    price: item.price,
+                    mainImage: config.getProductPicUrl(item.mainImage)
+                };
+            })
+        };
+    }
+});
+router.post('/delete_from_foot_list', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let productId = parseInt(ctx.request.body.productId);
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userId) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+    } else {
+        let result = await userCollection.update({
+            userId
+        }, {
+            $pull: {
+                footList: {
+                    productId
+                }
+            }
+        });
+        result = JSON.parse(result);
+        if (result.ok) {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 10,
+                errStr: '出错啦，请稍后重试',
+                data: ''
+            };
+        }
+    }
+});
+router.post('/toggle_collection_status', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let productCollection = database.collection('products');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let productId = parseInt(ctx.request.body.productId);
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userId) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+    } else {
+        let index = userDoc.collectionList.findIndex(item => {
+            return item.productId === productId;
+        });
+        let result;
+        if (index > -1) {
+            result = await userCollection.update({
+                userId
+            }, {
+                $pull: {
+                    collectionList: {
+                        productId
+                    }
+                }
+            });
+        } else {
+            let productDoc = await productCollection.findOne({
+                productId
+            });
+            result = await userCollection.update({
+                userId
+            }, {
+                $push: {
+                    collectionList: {
+                        productId,
+                        productNmae: productDoc.productName,
+                        price: productDoc.price,
+                        mainImage: productDoc.mainImage
+                    }
+                }
+            });
+        }
+        result = JSON.parse(result);
+        if (result.ok) {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 10,
+                errStr: '出错啦，请稍后重试',
+                data: ''
+            };
+        }
+    }
+});
+router.post('/add_to_cart', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let productCollection = database.collection('products');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let { productId, num, size, attr } = ctx.request.body;
+    productId = parseInt(productId);
+    num = parseInt(num);
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    let productIndex = userDoc.cartList.findIndex(item => {
+        return (
+            item.productId === productId &&
+            item.num === num &&
+            item.size === size &&
+            item.attr === attr
+        );
+    });
+    let result;
+    console.log(userDoc.cartList[productIndex].num);
+    if (productIndex > -1) {
+        result = await userCollection.update({
+            userId,
+            'cartList.productId': productId
+        }, {
+            $set: {
+                'cartList.$.num': userDoc.cartList[productIndex].num + num
+            }
+        });
+    } else {
+        let productDoc = await productCollection.findOne({
+            productId
+        });
+        result = await userCollection.update({
+            userId
+        }, {
+            $push: {
+                cartList: {
+                    productId,
+                    productName: productDoc.productName,
+                    price: productDoc.price,
+                    mainImage: productDoc.mainImage,
+                    num,
+                    size,
+                    attr
+                }
+            }
+        });
+    }
+    result = JSON.parse(result);
+    if (result.ok) {
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: ''
+        };
+    } else {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+    }
+});
 module.exports = router;
