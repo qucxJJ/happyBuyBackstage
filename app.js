@@ -12,6 +12,8 @@ const categories = require('./routes/categories');
 const products = require('./routes/products');
 const cities = require('./routes/cities');
 const admins = require('./routes/admins');
+const express = require('./routes/express');
+const orders = require('./routes/orders');
 
 // error handler
 onerror(app);
@@ -45,6 +47,8 @@ app.use(categories.routes(), categories.allowedMethods());
 app.use(products.routes(), products.allowedMethods());
 app.use(cities.routes(), cities.allowedMethods());
 app.use(admins.routes(), admins.allowedMethods());
+app.use(express.routes(), express.allowedMethods());
+app.use(orders.routes(), orders.allowedMethods());
 
 // error-handling
 app.on('error', (err, ctx) => {

@@ -1138,18 +1138,16 @@ router.post('/add_to_cart', async function(ctx, next) {
     });
     let productIndex = userDoc.cartList.findIndex(item => {
         return (
-            item.productId === productId &&
-            item.num === num &&
-            item.size === size &&
-            item.attr === attr
+            item.productId === productId && item.size === size && item.attr === attr
         );
     });
     let result;
-    console.log(userDoc.cartList[productIndex].num);
     if (productIndex > -1) {
         result = await userCollection.update({
             userId,
-            'cartList.productId': productId
+            'cartList.productId': productId,
+            'cartList.attr': attr,
+            'cartList.size': size
         }, {
             $set: {
                 'cartList.$.num': userDoc.cartList[productIndex].num + num
@@ -1159,15 +1157,22 @@ router.post('/add_to_cart', async function(ctx, next) {
         let productDoc = await productCollection.findOne({
             productId
         });
+        let id = userDoc.cartList.length ?
+            userDoc.cartList[userDoc.cartList.length - 1].id + 1 :
+            1;
+        let attrIndex = productDoc.attributes.findIndex(item => {
+            return item.name === attr;
+        });
         result = await userCollection.update({
             userId
         }, {
             $push: {
                 cartList: {
+                    id: id,
                     productId,
                     productName: productDoc.productName,
                     price: productDoc.price,
-                    mainImage: productDoc.mainImage,
+                    pic: productDoc.attributes[attrIndex].image,
                     num,
                     size,
                     attr
@@ -1189,5 +1194,147 @@ router.post('/add_to_cart', async function(ctx, next) {
             data: ''
         };
     }
+});
+router.get('/get_cart_list', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录',
+            data: ''
+        };
+        return;
+    }
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+    } else {
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: userDoc.cartList.map(item => {
+                return {
+                    id: item.id,
+                    productId: item.productId,
+                    productName: item.productName,
+                    price: item.price,
+                    pic: config.getProductPicUrl(item.pic),
+                    num: item.num,
+                    size: item.size,
+                    attr: item.attr,
+                    checked: 0,
+                    totalPrice: item.price * item.num
+                };
+            })
+        };
+    }
+});
+router.post('/modify_cart_product_num', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let productCollection = database.collection('products');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let { id, productId, type } = ctx.request.body;
+    id = parseInt(id);
+    productId = parseInt(productId);
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录',
+            data: ''
+        };
+        return;
+    }
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userDoc) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+    } else {
+        let proDoc = await productCollection.findOne({
+            productId
+        });
+        let dataIndex = userDoc.cartList.findIndex(item => {
+            return item.id === id;
+        });
+        let oldNum = userDoc.cartList[dataIndex].num;
+        let num;
+        if (type === 'plus') {
+            num = oldNum < proDoc.stockNum ? oldNum + 1 : oldNum;
+        } else {
+            num = oldNum > 1 ? oldNum - 1 : oldNum;
+        }
+        console.log(type);
+        let result = await userCollection.update({
+            userId,
+            'cartList.id': id
+        }, {
+            $set: {
+                'cartList.$.num': num
+            }
+        });
+        result = JSON.parse(result);
+        if (result.ok) {
+            ctx.body = {
+                errNo: 0,
+                errStr: 'success',
+                data: ''
+            };
+        } else {
+            ctx.body = {
+                errNo: 10,
+                errStr: '出错啦，请稍后重试',
+                data: ''
+            };
+        }
+    }
+});
+router.post('/delete_from_cart', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    let ids = ctx.request.body.ids;
+    for (let i = 0; i < ids.length; i++) {
+        ids[i] = parseInt(ids[i]);
+        console.log(ids[i], typeof ids[i]);
+    }
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    let result;
+    for (let i = 0; i < ids.length; i++) {
+        result = await userCollection.update({
+            userId
+        }, {
+            $pull: {
+                cartList: {
+                    id: ids[i]
+                }
+            }
+        });
+        result = JSON.parse(result);
+        if (!result.ok) {
+            ctx.body = {
+                errNo: 10,
+                errStr: '出错啦，请稍后重试',
+                data: ''
+            };
+            return;
+        }
+    }
+    ctx.body = {
+        errNo: 0,
+        errStr: 'success',
+        data: ''
+    };
 });
 module.exports = router;
