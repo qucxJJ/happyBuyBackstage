@@ -92,8 +92,14 @@ router.get('/get_all_product_list', async function(ctx, next) {
 });
 router.get('/get_product_detail', async function(ctx, next) {
     let productCollection = database.collection('products');
+    let evalsCollection = database.collection('evals');
     let productId = parseInt(ctx.query.productId);
     let userId = parseInt(ctx.cookies.get('userId'));
+    let evalDoc = await evalsCollection
+        .find({
+            productId
+        })
+        .toArray();
     let doc = await productCollection.findOne({ productId });
     if (doc) {
         let detailHtmlArr = doc.detailPics.map(item => {
@@ -170,7 +176,8 @@ router.get('/get_product_detail', async function(ctx, next) {
                 params: doc.params,
                 detail: detailHtmlArr.join(''),
                 payNum: doc.payNum,
-                collectStatus: collectStatus ? collectStatus : 0
+                collectStatus: collectStatus ? collectStatus : 0,
+                evaluationNum: evalDoc.length
             }
         };
     } else {

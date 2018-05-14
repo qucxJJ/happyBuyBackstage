@@ -3,7 +3,7 @@ const multer = require('koa-multer'); //加载koa-multer模块
 let storage = multer.diskStorage({
     //文件保存路径
     destination: function(req, file, cb) {
-        cb(null, 'public/images/user-avatar/');
+        cb(null, 'public/images/evals/');
     },
     //修改文件名称
     filename: function(req, file, cb) {

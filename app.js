@@ -14,6 +14,7 @@ const cities = require('./routes/cities');
 const admins = require('./routes/admins');
 const express = require('./routes/express');
 const orders = require('./routes/orders');
+const evals = require('./routes/evals');
 
 // error handler
 onerror(app);
@@ -49,6 +50,7 @@ app.use(cities.routes(), cities.allowedMethods());
 app.use(admins.routes(), admins.allowedMethods());
 app.use(express.routes(), express.allowedMethods());
 app.use(orders.routes(), orders.allowedMethods());
+app.use(evals.routes(), evals.allowedMethods());
 
 // error-handling
 app.on('error', (err, ctx) => {

@@ -946,7 +946,6 @@ router.post('/delete_address', async function(ctx, next) {
             let user = await userCollection.findOne({
                 userId
             });
-            console.log(user);
             let newDefaultId = user.addressList[0].addressId;
             let result2 = await userCollection.update({
                 userId,
