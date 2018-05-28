@@ -25,6 +25,7 @@ router.post('/submit_order', async function(ctx, next) {
         addressId,
         expressId,
         payListIds,
+        productInfo,
         userMsg,
         totalPrice
     } = ctx.request.body;
@@ -37,13 +38,60 @@ router.post('/submit_order', async function(ctx, next) {
     });
     // 获取选中商品详细信息
     let payList = [];
-    for (let i = 0; i < payListIds.length; i++) {
-        payListIds[i] = parseInt(payListIds[i]);
+    if (payListIds) {
+        for (let i = 0; i < payListIds.length; i++) {
+            payListIds[i] = parseInt(payListIds[i]);
 
-        let index = userDoc.cartList.findIndex(item => {
-            return item.id === payListIds[i];
-        });
-        let temp = userDoc.cartList[index];
+            let index = userDoc.cartList.findIndex(item => {
+                return item.id === payListIds[i];
+            });
+            let temp = userDoc.cartList[index];
+            payList.push({
+                productId: temp.productId,
+                productName: temp.productName,
+                price: temp.price,
+                pic: temp.pic,
+                num: temp.num,
+                size: temp.size,
+                attr: temp.attr,
+                isEval: 0
+            });
+            // 相应商品销量增加
+            let productDoc = await productCollection.findOne({
+                productId: userDoc.cartList[index].productId
+            });
+            await productCollection.update({
+                productId: userDoc.cartList[index].productId
+            }, {
+                $set: {
+                    payNum: productDoc.payNum + temp.num
+                }
+            });
+            // 商品库存减少
+            await productCollection.update({
+                productId: userDoc.cartList[index].productId
+            }, {
+                $set: {
+                    stockNum: productDoc.stockNum - temp.num
+                }
+            });
+            // 从购物车中删除
+            await userCollection.update({
+                userId
+            }, {
+                $pull: {
+                    cartList: {
+                        id: payListIds[i]
+                    }
+                }
+            });
+        }
+    } else {
+        let temp = productInfo;
+        temp.pic = temp.pic.split('/')[5];
+        temp.productId = parseInt(temp.productId);
+        temp.price = parseInt(temp.price);
+        temp.num = parseInt(temp.num);
         payList.push({
             productId: temp.productId,
             productName: temp.productName,
@@ -56,10 +104,10 @@ router.post('/submit_order', async function(ctx, next) {
         });
         // 相应商品销量增加
         let productDoc = await productCollection.findOne({
-            productId: userDoc.cartList[index].productId
+            productId: temp.productId
         });
         await productCollection.update({
-            productId: userDoc.cartList[index].productId
+            productId: temp.productId
         }, {
             $set: {
                 payNum: productDoc.payNum + temp.num
@@ -67,20 +115,10 @@ router.post('/submit_order', async function(ctx, next) {
         });
         // 商品库存减少
         await productCollection.update({
-            productId: userDoc.cartList[index].productId
+            productId: temp.productId
         }, {
             $set: {
                 stockNum: productDoc.stockNum - temp.num
-            }
-        });
-        // 从购物车中删除
-        await userCollection.update({
-            userId
-        }, {
-            $pull: {
-                cartList: {
-                    id: payListIds[i]
-                }
             }
         });
     }
@@ -95,7 +133,7 @@ router.post('/submit_order', async function(ctx, next) {
     let addressInfo = userDoc.addressList[addressIndex];
     // 生成订单号
     let orderDoc = orderCollection.find().toArray();
-    let randomNumber = Math.floor(Math.random() * 10000);
+    let randomNumber = (Math.floor(Math.random() * 10000) + '').padStart(4, '0');
     let orderNumber = `${time}${randomNumber}${userId.toString().slice(5)}`;
     // 创建订单
     let order = {
@@ -115,7 +153,8 @@ router.post('/submit_order', async function(ctx, next) {
         payTime: 0,
         sendTime: 0,
         turnoverTime: 0,
-        isEvalAll: 0
+        isEvalAll: 0,
+        expressNumber: ''
     };
     let result = await orderCollection.insertOne(order);
     result = JSON.parse(result);
@@ -307,6 +346,7 @@ router.post('/get_order_detail', async function(ctx, next) {
                             isEval: item.isEval
                         };
                     }),
+                    expressNumber: order.expressNumber,
                     totalPrice: order.totalPrice,
                     createTime: order.createTime,
                     payTime: order.payTime,
@@ -322,11 +362,13 @@ router.post('/pay_order', async function(ctx, next) {
     let orderCollection = database.collection('orders');
     let userId = parseInt(ctx.cookies.get('userId'));
     let orderNumber = ctx.request.body.orderNumber;
+    let time = Date.now();
     let result = await orderCollection.update({
         orderNumber,
         userId
     }, {
         $set: {
+            payTime: time,
             status: 2
         }
     });
@@ -375,12 +417,14 @@ router.post('/cancel_order', async function(ctx, next) {
 router.post('/send_order', async function(ctx, next) {
     let orderCollection = database.collection('orders');
     let { orderNumber, expressNumber } = ctx.request.body;
+    let time = Date.now();
     let result = await orderCollection.update({
         orderNumber
     }, {
         $set: {
             status: 3,
-            expressNumber
+            expressNumber,
+            sendTime: time
         }
     });
     result = JSON.parse(result);
@@ -402,11 +446,13 @@ router.post('/received_order', async function(ctx, next) {
     let orderCollection = database.collection('orders');
     let userId = parseInt(ctx.cookies.get('userId'));
     let orderNumber = ctx.request.body.orderNumber;
+    let time = Date.now();
     let result = await orderCollection.update({
         orderNumber,
         userId
     }, {
         $set: {
+            turnoverTime: time,
             status: 4
         }
     });

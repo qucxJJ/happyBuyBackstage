@@ -190,4 +190,49 @@ router.get('/get_product_eval', async function(ctx, next) {
         };
     }
 });
+router.get('/get_user_eval', async function(ctx, next) {
+    let evalsCollection = database.collection('evals');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录',
+            data: ''
+        };
+    } else {
+        let evals = await evalsCollection
+            .find({
+                userId
+            })
+            .sort({
+                createTime: -1
+            })
+            .toArray();
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: evals.map(item => {
+                return {
+                    evalId: item.evalId,
+                    productId: item.productId,
+                    type: item.type,
+                    productInfo: {
+                        productName: item.productInfo.productName,
+                        pic: config.getProductPicUrl(item.productInfo.pic),
+                        size: item.productInfo.size,
+                        attr: item.productInfo.attr,
+                        num: item.productInfo.num
+                    },
+                    content: item.content,
+                    pics: item.pics ?
+                        item.pics.map(pic => {
+                            return config.getEvalPicPath(pic);
+                        }) :
+                        [],
+                    createTime: item.createTime
+                };
+            })
+        };
+    }
+});
 module.exports = router;

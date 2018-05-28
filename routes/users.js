@@ -2,6 +2,7 @@ const router = require('koa-router')();
 let MongoClient = require('mongodb').MongoClient;
 let config = require('../common/config');
 let avatarUpload = require('../common/avatarUpload');
+let crypto = require('crypto');
 
 let database;
 (async function() {
@@ -52,6 +53,11 @@ router.get('/get_user_info', async function(ctx, next) {
 
 router.post('/login', async function(ctx, next) {
     let { userName, password } = ctx.request.body;
+    password = crypto
+        .createHash('sha1')
+        .update(`${password}${config.getSecretCode(userName)}`)
+        .digest('hex');
+    console.log(password);
     let userCollection = database.collection('users');
     let userDoc = await userCollection.findOne({
         userName
@@ -124,6 +130,10 @@ router.post('/register', async function(ctx, next) {
         let userId = userDoc.length ?
             parseInt(userDoc[userDoc.length - 1].userId) + 1 :
             100000001;
+        password = crypto
+            .createHash('sha1')
+            .update(`${password}${config.getSecretCode(userName)}`)
+            .digest('hex');
         let result = await userCollection.insertOne({
             userId,
             userName,
@@ -252,6 +262,10 @@ router.post('/reset_password', async function(ctx, next) {
     let userDoc = await userCollection.findOne({
         userName
     });
+    password = crypto
+            .createHash('sha1')
+            .update(`${password}${config.getSecretCode(userName)}`)
+            .digest('hex');
     if (!userDoc) {
         ctx.body = {
             errNo: 10,
@@ -285,6 +299,13 @@ router.post('/reset_password', async function(ctx, next) {
 router.get('/get_address_list', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let userDoc = await userCollection.findOne({
         userId
     });
@@ -320,6 +341,13 @@ router.post('/upload', avatarUpload.single('file'), async function(ctx, next) {
 router.get('/get_user_extra_data', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let userDoc = await userCollection.findOne({
         userId
     });
@@ -349,6 +377,13 @@ router.post('/set_user_extra_data', async function(ctx, next) {
     let userCollection = database.collection('users');
     let { avatar, realName, sex, birthday } = ctx.request.body;
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let result = await userCollection.update({
         userId
     }, {
@@ -377,6 +412,13 @@ router.post('/set_user_extra_data', async function(ctx, next) {
 router.get('/get_email_phone', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let userDoc = await userCollection.findOne({
         userId
     });
@@ -409,6 +451,13 @@ router.get('/get_email_phone', async function(ctx, next) {
 router.post('/check_old_password', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let password = ctx.request.body.oldPassword;
     let userDoc = await userCollection.findOne({
         userId
@@ -438,6 +487,13 @@ router.post('/check_old_password', async function(ctx, next) {
 router.post('/modify_password', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let password = ctx.request.body.newPassword;
     let userDoc = await userCollection.findOne({
         userId
@@ -484,6 +540,13 @@ router.post('/modify_password', async function(ctx, next) {
 router.post('/check_old_phone', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let phone = ctx.request.body.oldPhone;
     let userDoc = await userCollection.findOne({
         userId
@@ -513,6 +576,13 @@ router.post('/check_old_phone', async function(ctx, next) {
 router.post('/modify_phone', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let phone = ctx.request.body.newPhone;
     let userDoc = await userCollection.findOne({
         userId
@@ -569,6 +639,13 @@ router.post('/modify_phone', async function(ctx, next) {
 router.post('/check_old_email', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let email = ctx.request.body.oldEmail;
     let userDoc = await userCollection.findOne({
         userId
@@ -598,6 +675,13 @@ router.post('/check_old_email', async function(ctx, next) {
 router.post('/modify_email', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let email = ctx.request.body.newEmail;
     let userDoc = await userCollection.findOne({
         userId
@@ -654,6 +738,13 @@ router.post('/modify_email', async function(ctx, next) {
 router.get('/get_old_question', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let userDoc = await userCollection.findOne({
         userId
     });
@@ -674,6 +765,13 @@ router.get('/get_old_question', async function(ctx, next) {
 router.post('/check_old_answer', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let answer = ctx.request.body.oldAnswer;
     let userDoc = await userCollection.findOne({
         userId
@@ -703,6 +801,13 @@ router.post('/check_old_answer', async function(ctx, next) {
 router.post('/modify_question_and_answer', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let { question, answer } = ctx.request.body;
     let userDoc = await userCollection.findOne({
         userId
@@ -750,6 +855,13 @@ router.post('/modify_question_and_answer', async function(ctx, next) {
 router.post('/add_new_address', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let {
         receiveName,
         receivePhone,
@@ -811,6 +923,13 @@ router.post('/add_new_address', async function(ctx, next) {
 router.post('/set_default_address', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let addressId = parseInt(ctx.request.body.addressId);
     let userDoc = await userCollection.findOne({
         userId
@@ -859,6 +978,13 @@ router.post('/set_default_address', async function(ctx, next) {
 router.post('/edit_address_info', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let addressId = parseInt(ctx.request.body.addressId);
     let {
         receiveName,
@@ -915,6 +1041,13 @@ router.post('/edit_address_info', async function(ctx, next) {
 router.post('/delete_address', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let addressId = parseInt(ctx.request.body.addressId);
     let userDoc = await userCollection.findOne({
         userId
@@ -1000,6 +1133,13 @@ router.post('/delete_address', async function(ctx, next) {
 router.get('/get_foot_list', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let userDoc = await userCollection.findOne({
         userId
     });
@@ -1027,6 +1167,13 @@ router.get('/get_foot_list', async function(ctx, next) {
 router.post('/delete_from_foot_list', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let productId = parseInt(ctx.request.body.productId);
     let userDoc = await userCollection.findOne({
         userId
@@ -1067,6 +1214,13 @@ router.post('/toggle_collection_status', async function(ctx, next) {
     let userCollection = database.collection('users');
     let productCollection = database.collection('products');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let productId = parseInt(ctx.request.body.productId);
     let userDoc = await userCollection.findOne({
         userId
@@ -1129,6 +1283,13 @@ router.post('/add_to_cart', async function(ctx, next) {
     let userCollection = database.collection('users');
     let productCollection = database.collection('products');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let { productId, num, size, attr } = ctx.request.body;
     productId = parseInt(productId);
     num = parseInt(num);
@@ -1200,8 +1361,7 @@ router.get('/get_cart_list', async function(ctx, next) {
     if (!userId) {
         ctx.body = {
             errNo: 11,
-            errStr: '用户未登录',
-            data: ''
+            errStr: '用户未登录,无法获取当前用户的信息'
         };
         return;
     }
@@ -1239,6 +1399,13 @@ router.post('/modify_cart_product_num', async function(ctx, next) {
     let userCollection = database.collection('users');
     let productCollection = database.collection('products');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let { id, productId, type } = ctx.request.body;
     id = parseInt(id);
     productId = parseInt(productId);
@@ -1301,6 +1468,13 @@ router.post('/modify_cart_product_num', async function(ctx, next) {
 router.post('/delete_from_cart', async function(ctx, next) {
     let userCollection = database.collection('users');
     let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
     let ids = ctx.request.body.ids;
     for (let i = 0; i < ids.length; i++) {
         ids[i] = parseInt(ids[i]);

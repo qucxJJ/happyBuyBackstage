@@ -15,6 +15,9 @@ let config = {
     },
     getEvalPicPath(name) {
         return `${this.imageHost}${this.evalBasicPath}${name}`;
+    },
+    getSecretCode(userName) {
+        return `shopping-so-happy${userName}`;
     }
 };
 module.exports = config;
