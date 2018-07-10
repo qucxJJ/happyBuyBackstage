@@ -29,7 +29,7 @@ router.get('/get_product_list', async function(ctx, next) {
     sort = JSON.parse(sort);
     let doc = await productCollection
         .find({
-            productName: new RegExp(keyword),
+            productName: new RegExp(keyword, 'i'),
             price: {
                 $gte: Number(startPrice),
                 $lte: Number(endPrice)
@@ -62,25 +62,37 @@ router.get('/get_product_list', async function(ctx, next) {
 });
 router.get('/get_all_product_list', async function(ctx, next) {
     let productCollection = database.collection('products');
-    let { productId, keyword } = ctx.request.query;
+    let { productId, keyword, page, pageSize } = ctx.request.query;
     let doc;
+    let list;
     if (productId) {
         productId = parseInt(productId);
         doc = await productCollection.findOne({
             productId
         });
+        list = doc;
     } else {
+        list = await productCollection
+            .find({
+                productName: new RegExp(keyword)
+            })
+            .toArray();
         doc = await productCollection
             .find({
                 productName: new RegExp(keyword)
             })
+            .limit(parseInt(pageSize))
+            .skip(parseInt(page) * parseInt(pageSize))
             .toArray();
     }
     if (doc) {
         ctx.body = {
             errNo: 0,
             errStr: 'success',
-            data: productId ? [doc] : doc
+            data: {
+                list: productId ? [doc] : doc,
+                totalNum: list.length
+            }
         };
     } else {
         ctx.body = {
@@ -252,6 +264,7 @@ router.post('/upload', productUpload.single('file'), async function(ctx, next) {
     };
 });
 router.post('/add_product', async function(ctx, next) {
+    let idsCollection = database.collection('ids');
     let productCollection = database.collection('products');
     let {
         productName,
@@ -273,9 +286,11 @@ router.post('/add_product', async function(ctx, next) {
         };
         return;
     }
-    let productId = proDoc.length ?
-        proDoc[proDoc.length - 1].productId + 1 :
-        10000001;
+    let idMaxObj = await idsCollection.find().toArray();
+    let productId = idMaxObj[0].productId + 1;
+    // let productId = proDoc.length ?
+    //     proDoc[proDoc.length - 1].productId + 1 :
+    //     10000001;
     let result = await productCollection.insertOne({
         productId,
         productName,
@@ -292,6 +307,13 @@ router.post('/add_product', async function(ctx, next) {
     });
     result = JSON.parse(result);
     if (result.ok) {
+        await idsCollection.update({
+            id: 111
+        }, {
+            $set: {
+                productId
+            }
+        });
         ctx.body = {
             errNo: 0,
             errStr: 'success',

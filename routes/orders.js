@@ -177,7 +177,6 @@ router.get('/get_order_list', async function(ctx, next) {
     let orderCollection = database.collection('orders');
     let userId = parseInt(ctx.cookies.get('userId'));
     let type = ctx.request.query.type ? parseInt(ctx.request.query.type) : 0;
-    console.log(userId, typeof userId, type, typeof type);
     if (!userId) {
         ctx.body = {
             errNo: 11,
@@ -192,11 +191,22 @@ router.get('/get_order_list', async function(ctx, next) {
                     userId,
                     status: type
                 })
+                .sort({
+                    createTime: -1
+                })
                 .toArray();
+            if (type === 4) {
+                orderDoc = orderDoc.filter(item => {
+                    return item.isEvalAll === 0;
+                });
+            }
         } else {
             orderDoc = await orderCollection
                 .find({
                     userId
+                })
+                .sort({
+                    createTime: -1
                 })
                 .toArray();
         }
@@ -239,23 +249,46 @@ router.get('/get_order_list', async function(ctx, next) {
 router.get('/get_all_order_list', async function(ctx, next) {
     let orderCollection = database.collection('orders');
     let type = ctx.request.query.type ? parseInt(ctx.request.query.type) : 0;
+    let page = parseInt(ctx.request.query.page);
+    let pageSize = parseInt(ctx.request.query.pageSize);
     let orderNumber = ctx.request.query.orderNumber;
     let orderDoc;
+    let orderList;
+    console.log(typeof page, typeof pageSize);
     if (orderNumber) {
         orderDoc = await orderCollection
             .find({
                 orderNumber
             })
             .toArray();
+        orderList = orderDoc;
     } else {
         if (type) {
-            orderDoc = await orderCollection
+            orderList = await orderCollection
                 .find({
                     status: type
                 })
                 .toArray();
+            orderDoc = await orderCollection
+                .find({
+                    status: type
+                })
+                .limit(pageSize)
+                .skip(page * pageSize)
+                .sort({
+                    createTime: -1
+                })
+                .toArray();
         } else {
-            orderDoc = await orderCollection.find().toArray();
+            orderList = await orderCollection.find().toArray();
+            orderDoc = await orderCollection
+                .find()
+                .limit(pageSize)
+                .skip(page * pageSize)
+                .sort({
+                    createTime: -1
+                })
+                .toArray();
         }
     }
     if (!orderDoc) {
@@ -268,29 +301,32 @@ router.get('/get_all_order_list', async function(ctx, next) {
         ctx.body = {
             errNo: 0,
             errStr: 'success',
-            data: orderDoc.map(order => {
-                return {
-                    orderNumber: order.orderNumber,
-                    userMsg: order.userMsg,
-                    status: order.status,
-                    address: order.address.addressDetail,
-                    express: order.express.expressName,
-                    productList: order.productList.map(item => {
-                        return {
-                            productId: item.productId,
-                            productName: item.productName,
-                            price: item.price,
-                            pic: config.getProductPicUrl(item.pic),
-                            num: item.num,
-                            size: item.size,
-                            attr: item.attr,
-                            totalPrice: item.num * item.price
-                        };
-                    }),
-                    totalPrice: order.totalPrice,
-                    createTime: order.createTime
-                };
-            })
+            data: {
+                list: orderDoc.map(order => {
+                    return {
+                        orderNumber: order.orderNumber,
+                        userMsg: order.userMsg,
+                        status: order.status,
+                        address: order.address.addressDetail,
+                        express: order.express.expressName,
+                        productList: order.productList.map(item => {
+                            return {
+                                productId: item.productId,
+                                productName: item.productName,
+                                price: item.price,
+                                pic: config.getProductPicUrl(item.pic),
+                                num: item.num,
+                                size: item.size,
+                                attr: item.attr,
+                                totalPrice: item.num * item.price
+                            };
+                        }),
+                        totalPrice: order.totalPrice,
+                        createTime: order.createTime
+                    };
+                }),
+                totalNum: orderList.length
+            }
         };
     }
 });
@@ -471,6 +507,41 @@ router.post('/received_order', async function(ctx, next) {
             errNo: 10,
             errStr: '出错啦，请稍后重试',
             data: ''
+        };
+    }
+});
+router.get('/get_order_num', async function(ctx, next) {
+    let orderCollection = database.collection('orders');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录',
+            data: ''
+        };
+    } else {
+        let orderDoc = await orderCollection
+            .find({
+                userId
+            })
+            .toArray();
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: {
+                payNum: orderDoc.filter(item => {
+                    return item.status === 1;
+                }).length,
+                sendNum: orderDoc.filter(item => {
+                    return item.status === 2;
+                }).length,
+                receiveNum: orderDoc.filter(item => {
+                    return item.status === 3;
+                }).length,
+                evalNum: orderDoc.filter(item => {
+                    return item.status === 4 && item.isEvalAll === 0;
+                }).length
+            }
         };
     }
 });

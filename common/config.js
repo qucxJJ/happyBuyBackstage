@@ -4,6 +4,7 @@ let config = {
     productPicBasicPath: '/images/product/',
     expressPicBasicPath: '/images/express/',
     evalBasicPath: '/images/evals/',
+    defaultAvatar: 'http://localhost:3000/images/default/defaultAvatar.jpg',
     getAvatarUrl(name) {
         return `${this.imageHost}${this.avatarBasicPath}${name}`;
     },

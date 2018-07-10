@@ -114,7 +114,10 @@ router.post('/submit_eval', async function(ctx, next) {
 router.get('/get_product_eval', async function(ctx, next) {
     let evalsCollection = database.collection('evals');
     let userCollection = database.collection('users');
-    let { type, productId } = ctx.request.query;
+    let {
+        type,
+        productId
+    } = ctx.request.query;
     productId = parseInt(productId);
     let evalDoc = await evalsCollection
         .find({
@@ -124,7 +127,7 @@ router.get('/get_product_eval', async function(ctx, next) {
     type = parseInt(type);
     let evals;
     if (type) {
-        evals = evalsCollection
+        evals = await evalsCollection
             .find({
                 productId,
                 type
@@ -155,7 +158,7 @@ router.get('/get_product_eval', async function(ctx, next) {
             userName += userDoc.userName[len + 1];
             res.push({
                 userName,
-                avatar: config.getAvatarUrl(userDoc.avatar),
+                avatar: userDoc.avatar ? config.getAvatarUrl(userDoc.avatar) : config.defaultAvatar,
                 createTime: item.createTime,
                 content: item.content,
                 type: item.type,
@@ -164,8 +167,7 @@ router.get('/get_product_eval', async function(ctx, next) {
                 pics: item.pics ?
                     item.pics.map(pic => {
                         return config.getEvalPicPath(pic);
-                    }) :
-                    []
+                    }) : []
             });
         }
         let good = evalDoc.filter(item => {
@@ -227,8 +229,7 @@ router.get('/get_user_eval', async function(ctx, next) {
                     pics: item.pics ?
                         item.pics.map(pic => {
                             return config.getEvalPicPath(pic);
-                        }) :
-                        [],
+                        }) : [],
                     createTime: item.createTime
                 };
             })

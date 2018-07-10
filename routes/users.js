@@ -40,9 +40,9 @@ router.get('/get_user_info', async function(ctx, next) {
         let userInfo = {};
         userInfo.userName = userDoc.userName;
         userInfo.cartNum = userDoc.cartList.length;
-        userInfo.avatar = `${config.imageHost}${config.avatarBasicPath}${
-      userDoc.avatar
-    }`;
+        userInfo.avatar = userDoc.avatar ?
+            `${config.imageHost}${config.avatarBasicPath}${userDoc.avatar}` :
+            config.defaultAvatar;
         ctx.body = {
             errNo: 0,
             errStr: 'success',
@@ -52,7 +52,10 @@ router.get('/get_user_info', async function(ctx, next) {
 });
 
 router.post('/login', async function(ctx, next) {
-    let { userName, password } = ctx.request.body;
+    let {
+        userName,
+        password
+    } = ctx.request.body;
     password = crypto
         .createHash('sha1')
         .update(`${password}${config.getSecretCode(userName)}`)
@@ -230,7 +233,10 @@ router.post('/get_reset_question', async function(ctx, next) {
 });
 router.post('/check_reset_answer', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let { userName, answer } = ctx.request.body;
+    let {
+        userName,
+        answer
+    } = ctx.request.body;
     let userDoc = await userCollection.findOne({
         userName
     });
@@ -258,14 +264,17 @@ router.post('/check_reset_answer', async function(ctx, next) {
 });
 router.post('/reset_password', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let { userName, password } = ctx.request.body;
+    let {
+        userName,
+        password
+    } = ctx.request.body;
     let userDoc = await userCollection.findOne({
         userName
     });
     password = crypto
-            .createHash('sha1')
-            .update(`${password}${config.getSecretCode(userName)}`)
-            .digest('hex');
+        .createHash('sha1')
+        .update(`${password}${config.getSecretCode(userName)}`)
+        .digest('hex');
     if (!userDoc) {
         ctx.body = {
             errNo: 10,
@@ -364,7 +373,8 @@ router.get('/get_user_extra_data', async function(ctx, next) {
             data: {
                 avatar: {
                     name: userDoc.avatar,
-                    url: `${config.imageHost}${config.avatarBasicPath}${userDoc.avatar}`
+                    url: userDoc.avatar ?
+                        `${config.imageHost}${config.avatarBasicPath}${userDoc.avatar}` : config.defaultAvatar
                 },
                 realName: userDoc.realName,
                 sex: userDoc.sex ? parseInt(userDoc.sex) : '',
@@ -375,7 +385,12 @@ router.get('/get_user_extra_data', async function(ctx, next) {
 });
 router.post('/set_user_extra_data', async function(ctx, next) {
     let userCollection = database.collection('users');
-    let { avatar, realName, sex, birthday } = ctx.request.body;
+    let {
+        avatar,
+        realName,
+        sex,
+        birthday
+    } = ctx.request.body;
     let userId = parseInt(ctx.cookies.get('userId'));
     if (!userId) {
         ctx.body = {
@@ -458,10 +473,14 @@ router.post('/check_old_password', async function(ctx, next) {
         };
         return;
     }
-    let password = ctx.request.body.oldPassword;
     let userDoc = await userCollection.findOne({
         userId
     });
+    let password = ctx.request.body.oldPassword;
+    password = crypto
+        .createHash('sha1')
+        .update(`${password}${config.getSecretCode(userDoc.userName)}`)
+        .digest('hex');
     if (!userDoc) {
         ctx.body = {
             errNo: 1,
@@ -494,10 +513,15 @@ router.post('/modify_password', async function(ctx, next) {
         };
         return;
     }
-    let password = ctx.request.body.newPassword;
     let userDoc = await userCollection.findOne({
         userId
     });
+    let password = ctx.request.body.newPassword;
+    password = crypto
+        .createHash('sha1')
+        .update(`${password}${config.getSecretCode(userDoc.userName)}`)
+        .digest('hex');
+
     if (!userDoc) {
         ctx.body = {
             errNo: 10,
@@ -808,7 +832,10 @@ router.post('/modify_question_and_answer', async function(ctx, next) {
         };
         return;
     }
-    let { question, answer } = ctx.request.body;
+    let {
+        question,
+        answer
+    } = ctx.request.body;
     let userDoc = await userCollection.findOne({
         userId
     });
@@ -1150,17 +1177,55 @@ router.get('/get_foot_list', async function(ctx, next) {
             data: ''
         };
     } else {
+        let list = userDoc.footList.map(item => {
+            return {
+                productId: item.productId,
+                productName: item.productName,
+                price: item.price,
+                mainImage: config.getProductPicUrl(item.mainImage)
+            };
+        });
+        list.reverse();
         ctx.body = {
             errNo: 0,
             errStr: 'success',
-            data: userDoc.footList.map(item => {
-                return {
-                    productId: item.productId,
-                    productName: item.productName,
-                    price: item.price,
-                    mainImage: config.getProductPicUrl(item.mainImage)
-                };
-            })
+            data: list
+        };
+    }
+});
+router.get('/get_collection_list', async function(ctx, next) {
+    let userCollection = database.collection('users');
+    let userId = parseInt(ctx.cookies.get('userId'));
+    if (!userId) {
+        ctx.body = {
+            errNo: 11,
+            errStr: '用户未登录,无法获取当前用户的信息'
+        };
+        return;
+    }
+    let userDoc = await userCollection.findOne({
+        userId
+    });
+    if (!userId) {
+        ctx.body = {
+            errNo: 10,
+            errStr: '出错啦，请稍后重试',
+            data: ''
+        };
+    } else {
+        let list = userDoc.collectionList.map(item => {
+            return {
+                productId: item.productId,
+                productName: item.productName,
+                price: item.price,
+                mainImage: config.getProductPicUrl(item.mainImage)
+            };
+        });
+        list.reverse();
+        ctx.body = {
+            errNo: 0,
+            errStr: 'success',
+            data: list
         };
     }
 });
@@ -1256,7 +1321,7 @@ router.post('/toggle_collection_status', async function(ctx, next) {
                 $push: {
                     collectionList: {
                         productId,
-                        productNmae: productDoc.productName,
+                        productName: productDoc.productName,
                         price: productDoc.price,
                         mainImage: productDoc.mainImage
                     }
@@ -1290,7 +1355,12 @@ router.post('/add_to_cart', async function(ctx, next) {
         };
         return;
     }
-    let { productId, num, size, attr } = ctx.request.body;
+    let {
+        productId,
+        num,
+        size,
+        attr
+    } = ctx.request.body;
     productId = parseInt(productId);
     num = parseInt(num);
     let userDoc = await userCollection.findOne({
@@ -1406,7 +1476,11 @@ router.post('/modify_cart_product_num', async function(ctx, next) {
         };
         return;
     }
-    let { id, productId, type } = ctx.request.body;
+    let {
+        id,
+        productId,
+        type
+    } = ctx.request.body;
     id = parseInt(id);
     productId = parseInt(productId);
     if (!userId) {
